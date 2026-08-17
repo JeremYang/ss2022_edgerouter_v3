@@ -2,14 +2,13 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-EdgeOS%203.x%20%2F%201.x%20%2F%202.x-brightgreen)]()
-[![Arch](https://img.shields.io/badge/arch-MIPS32%20(mipsel)-lightgrey)]()
+[![Arch](https://img.shields.io/badge/arch-MIPS32%20(mipsel%20%2B%20mips)-lightgrey)]()
 [![Client](https://img.shields.io/badge/client-shadowsocks--rust%20v1.24.0-orange)]()
 [![DNS](https://img.shields.io/badge/DNS-chinadns--ng%202025.08.09-yellow)]()
+[![Release](https://img.shields.io/github/v/release/JeremYang/ss2022_edgerouter_v3)](https://github.com/JeremYang/ss2022_edgerouter_v3/releases)
+[![Downloads](https://img.shields.io/github/downloads/JeremYang/ss2022_edgerouter_v3/total)](https://github.com/JeremYang/ss2022_edgerouter_v3/releases)
 
-<!-- 发布后把下面两行中的 OWNER/REPO 换成你的账号/仓库名即可显示版本与下载量徽章:
-[![Release](https://img.shields.io/github/v/release/OWNER/REPO)](https://github.com/OWNER/REPO/releases)
-[![Downloads](https://img.shields.io/github/downloads/OWNER/REPO/total)](https://github.com/OWNER/REPO/releases)
--->
+
 
 > Shadowsocks 2022 (SIP022) client for Ubiquiti EdgeRouter X (ER-X).
 > Prebuilt static binaries: shadowsocks-rust (SS2022 + transparent proxy),

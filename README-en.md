@@ -5,11 +5,10 @@
 [![Arch](https://img.shields.io/badge/arch-MIPS32%20(mipsel)-lightgrey)]()
 [![Client](https://img.shields.io/badge/client-shadowsocks--rust%20v1.24.0-orange)]()
 [![DNS](https://img.shields.io/badge/DNS-chinadns--ng%202025.08.09-yellow)]()
+[![Release](https://img.shields.io/github/v/release/JeremYang/ss2022_edgerouter_v3)](https://github.com/JeremYang/ss2022_edgerouter_v3/releases)
+[![Downloads](https://img.shields.io/github/downloads/JeremYang/ss2022_edgerouter_v3/total)](https://github.com/JeremYang/ss2022_edgerouter_v3/releases)
 
-<!-- After publishing, replace OWNER/REPO below with your account/repo to show version & download badges:
-[![Release](https://img.shields.io/github/v/release/OWNER/REPO)](https://github.com/OWNER/REPO/releases)
-[![Downloads](https://img.shields.io/github/downloads/OWNER/REPO/total)](https://github.com/OWNER/REPO/releases)
--->
+
 
 > A complete Shadowsocks 2022 client package for Ubiquiti EdgeRouter.
 > Prebuilt static binaries: **shadowsocks-rust** (SS2022 + transparent proxy)
