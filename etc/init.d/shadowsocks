@@ -140,8 +140,59 @@ rules_flush() {
 	return $?
 }
 
+# ---------------------------------------------------------------------------
+# DNS 切换(基于 vyatta config tree,持久化在 config.boot,重启/commit 不丢)
+#   set_dns_chain ss     :dnsmasq → chinadns-ng(127.0.0.1#5301,防污染)
+#   set_dns_chain direct :删除转发配置,恢复直连解析(国内外域名都能解析)
+# 先检查 /etc/dnsmasq.conf 已提交状态,状态已正确则跳过 commit,
+# 避免 commit 触发 post-config.d 造成的重复启动。
+# ---------------------------------------------------------------------------
+VYATTA_CFG=/opt/vyatta/sbin/vyatta-cfg-cmd-wrapper
+SS_DNS_MARKER=/tmp/ss-manually-stopped
+
+dns_is_ss() {
+	grep -q "^server=127.0.0.1#5301" /etc/dnsmasq.conf 2>/dev/null
+}
+
+set_dns_chain() {
+	if [ ! -x "$VYATTA_CFG" ]; then
+		# 无 vyatta(非常规环境):直接改 dnsmasq.conf 并重启
+		if [ "$1" = "ss" ]; then
+			[ 0 == `grep "^server=127.0.0.1#5301" /etc/dnsmasq.conf|wc -l` ] && \
+				echo server=127.0.0.1#5301 >> /etc/dnsmasq.conf
+			[ 0 == `grep "^no-resolv" /etc/dnsmasq.conf|wc -l` ] && \
+				echo no-resolv >> /etc/dnsmasq.conf
+		else
+			sed -i '/^server=127.0.0.1#5301/d;/^no-resolv/d' /etc/dnsmasq.conf 2>/dev/null
+		fi
+		/etc/init.d/dnsmasq restart >/dev/null 2>&1
+		return 0
+	fi
+
+	export CMD_WRAPPER_SESSION_ID="ssdns-$$"
+	if [ "$1" = "ss" ]; then
+		dns_is_ss && return 0
+		"$VYATTA_CFG" begin
+		"$VYATTA_CFG" set service dns forwarding options "server=127.0.0.1#5301"
+		"$VYATTA_CFG" set service dns forwarding options "no-resolv"
+		"$VYATTA_CFG" commit
+		"$VYATTA_CFG" end
+	else
+		if ! dns_is_ss; then
+			return 0
+		fi
+		"$VYATTA_CFG" begin
+		"$VYATTA_CFG" delete service dns forwarding options "server=127.0.0.1#5301"
+		"$VYATTA_CFG" delete service dns forwarding options "no-resolv"
+		"$VYATTA_CFG" commit
+		"$VYATTA_CFG" end
+	fi
+	return 0
+}
+
 case "$1" in
   start)
+	rm -f $SS_DNS_MARKER 2>/dev/null
 	test_network
 	get_ss_config
 	log_daemon_msg "Starting ss-local (socks5 :1080)" "ss-local"
@@ -182,22 +233,16 @@ case "$1" in
 	rules_add
 	log_end_msg $?
 
-	# dnsmasq is pointed at chinadns (127.0.0.1#5301) via the config tree,
-	# set once by install.sh:
-	#   set service dns forwarding options "server=127.0.0.1#5301"
-	#   set service dns forwarding options "no-resolv"
-	# If it is not set (e.g. manual install), fall back to the legacy sed method:
-	if ! grep -q "^server=127.0.0.1#5301" /etc/dnsmasq.conf 2>/dev/null; then
-		log_daemon_msg "Pointing dnsmasq at chinadns (fallback method)"
-		sed -i s/server=$ISPDNS/server=127.0.0.1#5301/ /etc/dnsmasq.conf 2>/dev/null
-		[ 0 == `grep "^server" /etc/dnsmasq.conf|wc -l` ] && echo server=127.0.0.1#5301 >> /etc/dnsmasq.conf 2>/dev/null
-		[ 0 == `grep "^no-resolv" /etc/dnsmasq.conf|wc -l` ] && echo no-resolv >> /etc/dnsmasq.conf 2>/dev/null
-		/etc/init.d/dnsmasq restart
-		log_end_msg $?
-	fi
+	# dnsmasq 指向 chinadns-ng(防污染),通过 config tree 持久化;
+	# 已设置则跳过(避免 commit 触发 post-config.d 重复启动)
+	log_daemon_msg "Pointing dnsmasq at chinadns-ng" "dns"
+	set_dns_chain ss
+	log_end_msg $?
 
     ;;
   stop)
+	# 标记:显式停止,post-config.d 不应在后续 commit 时自动拉起
+	touch $SS_DNS_MARKER 2>/dev/null
 	log_daemon_msg "Stopping ss-local" "ss-local"
 	start-stop-daemon -K -p $PIDFILE_SS_LOCAL --oknodo
 	log_end_msg $?
@@ -209,9 +254,13 @@ case "$1" in
 		start-stop-daemon -K -p $PIDFILE_PDNSD --oknodo
 		log_end_msg $?
 	fi
-	# 注意:chinadns-ng 保留运行。dnsmasq 固定转发到 127.0.0.1#5301,
-	# 若停掉 chinadns-ng 则所有 DNS(含国内)失效导致"断网";
-	# 保留它则国内 DNS 正常,国外因无隧道而无法解析/连接(符合预期)。
+	log_daemon_msg "Stopping chinadns(-ng)" "chinadns"
+	start-stop-daemon -K -p $PIDFILE_CHINADNS --oknodo
+	log_end_msg $?
+	# DNS 切回直连:国内外域名均可解析(直连能访问的海外网站仍可慢速访问)
+	log_daemon_msg "Restoring direct DNS" "dns"
+	set_dns_chain direct
+	log_end_msg $?
 	log_daemon_msg "Deleting iptables rules" "rules_flush"
 	rules_flush
 	log_end_msg $?

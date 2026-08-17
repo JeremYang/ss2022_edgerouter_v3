@@ -197,6 +197,12 @@ sudo sysctl -w net.core.wmem_max=8388608
 
 **ER-X(MT7621,880MHz 双核)**:软件 chacha20/AES 吞吐约 **30-60 Mbps**(用户实测不足 30M 与 CPU 和平台相关),如需更高吞吐建议用 ER-4 等 Octeon 平台。
 
+**ER-4 硬件 offload 说明**:e300 平台的 Cavium 硬件转发卸载(`cavium_ip_offload`)
+**默认已开启**(`/proc/cavium/ipv4/fwd = 1`),国内/旁路流量由硬件引擎转发,为
+sslocal 的软件加密腾出 CPU。隧道流量(REDIRECT 到本机 + 路由器↔VPS 连接)属于
+本机进程流量,**无法硬件卸载**,SS2022 加密为纯软件计算;`system offload ipsec`
+(Octeon 加密引擎)仅服务内核 IPsec,与本方案无关。无需额外开启任何 offload 选项。
+
 ---
 
 ## 3. 第三步:安装 `ss-erx3` 包
@@ -306,16 +312,21 @@ sudo sh /config/shadowsocks/bin/update-chnroute.sh
 # EdgeOS 3.x(systemd)推荐方式:
 sudo systemctl status shadowsocks      # 查看状态
 sudo systemctl restart shadowsocks     # 重启
-sudo systemctl stop shadowsocks        # 停止代理(国内上网保持正常,国外不可达)
+sudo systemctl stop shadowsocks        # 停止代理(回到普通直连上网)
 # 或兼容方式(自动重定向到 systemctl):
 sudo /etc/init.d/shadowsocks status
 sudo /etc/init.d/shadowsocks restart
 ```
-> **停止服务的说明**:`stop` 只关闭代理(ss-local/ss-redir)并清 iptables 规则;
-> **chinadns-ng 保留运行**(systemd 单元 `KillMode=process`),因此 dnsmasq→chinadns-ng
-> 的 DNS 链路不断,国内网站照常访问;国外域名因无隧道无法解析/连接(符合预期)。
-> 再次 `start` 即可全部恢复。若某次 commit 后服务被意外拉起,属于 post-config.d
-> 的规则恢复机制——只有服务处于运行状态时才会触发,显式 `stop` 后不会被拉起。
+> **停止服务的说明**(v1.0.2 起):`stop` 关闭全部代理进程(ss-local/ss-redir/
+> chinadns-ng)、清 iptables 规则,并**把 DNS 完整切回直连**(删除 config tree
+> 里的 `server=127.0.0.1#5301` + `no-resolv`,dnsmasq 重新使用 WAN DNS):
+> - 国内外域名**都能正常解析**;国内网站照常访问;
+> - 直连可达的海外网站(如 GitHub、Cloudflare 系)可**慢速直连访问**;
+>   被墙的网站解析到污染 IP 仍不可达(无代理时的正常状态);
+> - DNS 防污染仅在服务运行时生效。
+> 再次 `start` 自动切回防污染 DNS 并恢复全部组件。
+> post-config.d 有双重保护(标记文件 + `systemctl is-active`),显式 `stop` 后
+> 任何 commit 都不会自动拉起服务;服务运行中 commit 会正常补挂 iptables 规则。
 自愈监控(沿用旧版,可选):
 ```
 sudo crontab -e
