@@ -166,11 +166,36 @@ curl -x socks5h://127.0.0.1:1080 -I --connect-timeout 8 https://www.google.com
   3. 保留本路由器方案不变(路由器只管透明代理),只换服务端协议——客户端侧相应调整。
 - 对 7 年只求"稳定能用"的使用场景,SS2022 + AES-256-GCM(xray 服务端)或 chacha20(shadowsocks-rust 服务端)是当前性价比最高的升级。
 
-### 2.7 性能预期
-- MT7621 双核 880MHz,无 AES 硬件加速;
-- 软件 chacha20-poly1305 + BLAKE3 在 ER-X 上实测通常可达 **30–60 Mbps**(与旧版 chacha20-ietf-poly1305 相近,BLAKE3 开销很小);
-- 如果你宽带 >100M 且对速度敏感,ER-X 本身(NAT 转发)就是瓶颈,与 SS 版本无关;
-- 建议升级后用 `iperf3` 或 speedtest 实测,若 <20Mbps 再排查(见故障排查)。
+### 2.7 性能预期(含 ER-4 实测,2026-08)
+
+**ER-4(Octeon MIPS64,1GHz 双核,软件 AES-256-GCM)实测**(经隧道,目标 OVH/Cloudflare):
+
+| 连接方式 | 吞吐 | 说明 |
+|---|---|---|
+| 单连接 | ~13-20 Mbps | 受 TCP 窗口 × RTT(约 122ms 国内→新加坡)限制 |
+| 4 连接并行 | ~42-70 Mbps | 聚合随连接数增长 |
+| **8 连接并行** | **~230 Mbps** | 已接近 260M 宽带上限,远超 speedtest 单测 |
+
+**结论:**
+- speedtest 默认并行连接少(3-4 条),会**严重低估**实际能力;浏览器/流媒体天然多连接并行,日常体验明显高于 speedtest 数字;
+- 瓶颈是**单连接 TCP 窗口(延迟带宽积 = RTT × 带宽)**,不是路由器 CPU、不是 VPS 带宽、不是加密开销;
+- 验证多连接吞吐:浏览器开 `speed.cloudflare.com`,或 `seq 1 8 | xargs -P8 -I{} curl -o /dev/null -s -w '%{speed_download}\n' https://proof.ovh.net/files/10Mb.dat` 求和;
+- 上行受宽带上行限制(如 10M 宽带,隧道上传约 ~10M,属正常)。
+
+**可选调优(实验性,收益有限,注释参考):** 提升单连接吞吐需放大 TCP 窗口,可在路由器上尝试:
+```bash
+# 提高接收/发送缓冲上限(重启后失效,可写进 /config/scripts/post-config.d/)
+sudo sysctl -w net.core.rmem_max=8388608
+sudo sysctl -w net.core.wmem_max=8388608
+```
+并在 `/etc/init.d/shadowsocks` 的 sslocal 命令加:
+```
+--outbound-send-buffer-size 4194304 --outbound-recv-buffer-size 4194304
+--inbound-send-buffer-size 4194304 --inbound-recv-buffer-size 4194304
+```
+> 实测说明:ER-4 上增大 socket 缓冲对单连接提升有限(rmem_max 默认 1MB 会截断更大的请求),优先靠多连接并行,不建议为追求单连接数字折腾。
+
+**ER-X(MT7621,880MHz 双核)**:软件 chacha20/AES 吞吐约 **30-60 Mbps**(用户实测不足 30M 与 CPU 和平台相关),如需更高吞吐建议用 ER-4 等 Octeon 平台。
 
 ---
 
