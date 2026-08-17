@@ -27,6 +27,13 @@
 - 旧 init 脚本用的 `iptables -t nat REDIRECT` + `ipset`,在 3.0.1 的 iptables-legacy 上**原样可用**;
 - 真正需要换客户端二进制的原因只有一个:**Shadowsocks 2022 需要支持 SIP022 的实现**(shadowsocks-libev 上游不支持,本包改用 shadowsocks-rust)。
 
+> **ER-4 / ER-6P / ER-12 系列注意(本包同样支持,自动识别架构):**
+> - e300 平台的 3.0.1 固件(`e300.v3.0.1.5862409.tar`)内核是 **4.9.79-UBNT**(Cavium Octeon SDK),
+>   用户空间是 **32 位大端 o32**(MIPS64 内核 + 32 位用户空间,全系统无 64 位二进制);
+> - 因此 ER-4 系列使用 **mips(大端)二进制**,install.sh 按 `uname -m`(mips64)自动选择,
+>   无需手动干预;ER-X 的旧兜底组件(chinadns/pdnsd 小端)不适用于 ER-4,ER-4 只依赖 chinadns-ng;
+> - 其余机制(systemd 单元、iptables 规则、DHCP DNS、chinadns-ng 配置)与 ER-X 完全一致。
+
 ---
 
 ## 1. 第一步:升级固件到 EdgeOS 3.0.1
