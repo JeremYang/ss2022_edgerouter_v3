@@ -16,13 +16,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Sanity check binaries (mipsel static)
+      - name: Sanity check binaries (mipsel + mips static)
         run: |
-          file config/shadowsocks/bin/sslocal config/shadowsocks/bin/chinadns-ng
-          test "$(file -b config/shadowsocks/bin/sslocal | grep -o 'MIPS')" = "MIPS" \
-            && echo "sslocal: MIPS OK"
-          test "$(file -b config/shadowsocks/bin/chinadns-ng | grep -o 'statically linked')" = "statically linked" \
-            && echo "chinadns-ng: static OK"
+          file config/shadowsocks/bin/sslocal.mipsel config/shadowsocks/bin/sslocal.mips \
+               config/shadowsocks/bin/chinadns-ng.mipsel config/shadowsocks/bin/chinadns-ng.mips
+          # ER-X: little-endian; ER-4: big-endian
+          test "$(file -b config/shadowsocks/bin/sslocal.mipsel | grep -o 'LSB')" = "LSB" \
+            && echo "sslocal.mipsel: LSB OK"
+          test "$(file -b config/shadowsocks/bin/sslocal.mips | grep -o 'MSB')" = "MSB" \
+            && echo "sslocal.mips: MSB OK"
+          test "$(file -b config/shadowsocks/bin/chinadns-ng.mips | grep -o 'statically linked')" = "statically linked" \
+            && echo "chinadns-ng.mips: static OK"
           test -s config/shadowsocks/conf/chnroute.txt && echo "chnroute.txt OK"
           bash -n install.sh && bash -n etc/init.d/shadowsocks && echo "scripts syntax OK"
 

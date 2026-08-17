@@ -123,3 +123,35 @@ cargo +nightly build --release \
 - `chnroute.txt`(国内 IP 表):来源 [17mon/china_ip_list](https://github.com/17mon/china_ip_list)
   (IPIP.net 维护),随包提供 2026-08 数据;路由器上可用
   `update-chnroute.sh` 在线更新
+
+---
+
+## 补充:ER-4 / ER-6P / ER-12 系列(mips 大端)
+
+EdgeOS 3.0.1 在 e300 平台(ER-4 等)上的实际情况(从官方固件解包验证):
+
+- 内核:**4.9.79-UBNT**(Cavium Octeon SDK,gcc 4.7.0),64 位 MIPS
+- **用户空间是 32 位大端 o32**(整个系统无 64 位二进制,curl/busybox 均为
+  `ELF 32-bit MSB MIPS32`)
+- systemd、glibc 2.24、iptables-legacy,与 ER-X 相同
+
+因此 ER-4 系列使用 **mips(大端)32 位** 二进制,目标三元组 `mips-unknown-linux-musl`:
+
+```sh
+# 与 mipsel 流程相同,仅替换目标:
+#   链接器包装脚本:zig cc -target mips-linux-musl -O2 -static -msoft-float -lunwind
+#   rustc target JSON:--target mips-unknown-linux-musl
+#   (该目标默认 features: +mips32r2,+soft-float,与包装脚本一致)
+cargo +nightly build --release \
+  --target mips-unknown-linux-musl.json \
+  -Z build-std=std,panic_abort -Z json-target-spec \
+  --features "local-redir aead-cipher-2022" --bin sslocal
+```
+
+产物验证:`ELF 32-bit MSB executable, MIPS, MIPS32, statically linked`(大端)。
+
+chinadns-ng 大端版直接用官方预编译:
+`chinadns-ng@mips-linux-musl@mips32+soft_float@fast+lto`(2025.08.09,288KB)。
+
+> 注:ER-X 旧版兜底组件 chinadns/pdnsd 是小端二进制,不能用于 ER-4;
+> ER-4 系列只依赖 chinadns-ng(官方预编译),init 脚本自动识别。

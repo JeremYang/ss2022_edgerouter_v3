@@ -17,11 +17,15 @@
 
 [English README](./README-en.md)
 
-为 EdgeRouter X (ER-X) 定制的 Shadowsocks 2022 科学上网方案,基于 **shadowsocks-rust
+为 EdgeRouter 系列定制的 Shadowsocks 2022 科学上网方案,基于 **shadowsocks-rust
 v1.24.0**(支持 SIP022 2022 密码与 redir 透明代理)与 **chinadns-ng**(DNS 防污染),
-全部交叉编译为 **mipsel 静态二进制**,无需在路由器上安装任何依赖。
+全部交叉编译为 **静态二进制**,无需在路由器上安装任何依赖。
 
-适配 EdgeOS **3.0.1**(systemd、内核 4.14.54-UBNT、iptables-legacy)以及 1.x/2.x。
+**支持平台**(install.sh 自动识别架构,无需选择):
+- **ER-X / ER-X-SFP / EP-R6 / ER-10X**(MIPS32 小端,`uname -m` = mips)
+- **ER-4 / ER-6P / ER-12 / ER-12P**(Octeon MIPS64 内核 + o32 大端用户空间,`uname -m` = mips64,ER-4 已实机验证)
+
+适配 EdgeOS **3.0.1**(systemd、iptables-legacy)以及 1.x/2.x。
 
 ---
 
@@ -38,7 +42,7 @@ v1.24.0**(支持 SIP022 2022 密码与 redir 透明代理)与 **chinadns-ng**(DN
 
 ```
 ss-erx3/
-├── install.sh                              # 一键安装脚本(交互式)
+├── install.sh                              # 一键安装脚本(交互式,自动识别平台架构)
 ├── UPGRADE-GUIDE.md                        # 完整升级指南(固件升级/服务端/排障,含踩坑实录)
 ├── BUILD-REPRODUCE.md                      # 交叉编译复现文档
 ├── THIRD-PARTY-NOTICES.md                  # 第三方组件许可证
@@ -46,7 +50,8 @@ ss-erx3/
 ├── etc/init.d/shadowsocks                  # 服务脚本
 ├── etc/systemd/system/shadowsocks.service  # systemd 单元(EdgeOS 3.x)
 └── config/shadowsocks/
-    ├── bin/  sslocal · chinadns-ng · chinadns · pdnsd · update-chnroute.sh · ss-monitor.sh
+    ├── bin/  sslocal.mipsel/.mips · chinadns-ng.mipsel/.mips · 旧兜底组件(mipsel)
+    │         update-chnroute.sh · ss-monitor.sh
     └── conf/ shadowsocks.json.example · chinadns-ng.conf · pdnsd.conf · chnroute.txt
 ```
 

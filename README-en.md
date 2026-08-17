@@ -11,9 +11,13 @@
 [![Downloads](https://img.shields.io/github/downloads/OWNER/REPO/total)](https://github.com/OWNER/REPO/releases)
 -->
 
-> A complete Shadowsocks 2022 client package for the Ubiquiti EdgeRouter X (ER-X).
-> Prebuilt static mipsel binaries: **shadowsocks-rust** (SS2022 + transparent proxy)
+> A complete Shadowsocks 2022 client package for Ubiquiti EdgeRouter.
+> Prebuilt static binaries: **shadowsocks-rust** (SS2022 + transparent proxy)
 > and **chinadns-ng** (DNS anti-pollution). Works on EdgeOS **3.0.x (systemd)** and 1.x/2.x.
+
+**Supported platforms** (install.sh auto-detects the architecture):
+- **ER-X / ER-X-SFP / EP-R6 / ER-10X** (MIPS32 little-endian, `uname -m` = mips)
+- **ER-4 / ER-6P / ER-12 / ER-12P** (Octeon MIPS64 kernel + o32 big-endian userland, `uname -m` = mips64; ER-4 verified on hardware)
 
 [中文版 README](./README.md)
 

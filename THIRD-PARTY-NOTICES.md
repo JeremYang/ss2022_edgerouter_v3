@@ -5,10 +5,9 @@
 
 | 组件 | 版本/来源 | 许可证 | 源码 |
 |---|---|---|---|
-| `bin/sslocal`(shadowsocks-rust) | v1.24.0,交叉编译(见 BUILD-REPRODUCE.md) | **MIT** | https://github.com/shadowsocks/shadowsocks-rust |
-| `bin/chinadns-ng` | 2025.08.09,官方预编译 mipsel 静态二进制 | **AGPL-3.0** | https://github.com/zfl9/chinadns-ng |
-| `bin/chinadns`(旧) | 来自 izerosoul/shadowsocks_erx(v1.3.2 修改版) | 原仓库未声明许可证 | https://github.com/izerosoul/shadowsocks_erx |
-| `bin/pdnsd`(旧) | pdnsd 1.2.9 | **GPL-2.0** | https://sources.debian.org/src/pdnsd/ |
+| `bin/sslocal.mipsel` / `bin/sslocal.mips`(shadowsocks-rust) | v1.24.0,交叉编译(见 BUILD-REPRODUCE.md) | **MIT** | https://github.com/shadowsocks/shadowsocks-rust |
+| `bin/chinadns-ng.mipsel` / `bin/chinadns-ng.mips` | 2025.08.09,官方预编译(mipsel/mips 静态) | **AGPL-3.0** | https://github.com/zfl9/chinadns-ng |
+| `bin/chinadns.mipsel` / `bin/pdnsd.mipsel`(旧,仅 ER-X 兜底) | 来自 izerosoul/shadowsocks_erx(v1.3.2 修改版)/ pdnsd 1.2.9 | 原仓库未声明 / **GPL-2.0** | https://github.com/izerosoul/shadowsocks_erx |
 | `conf/chnroute.txt` | 17mon/china_ip_list 数据(2026-08) | 数据版权归原作者 | https://github.com/17mon/china_ip_list |
 | `install.sh` / `etc/init.d/shadowsocks` | 基于 izerosoul/shadowsocks_erx 思路重写 | 本项目 MIT | https://github.com/izerosoul/shadowsocks_erx |
 

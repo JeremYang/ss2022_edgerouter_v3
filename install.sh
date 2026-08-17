@@ -99,11 +99,28 @@ echo "write /config/shadowsocks/conf/shadowsocks.json success"
 
 # ---------------------------------------------------------------------------
 # 3. Copy binaries / init script
+#   平台自动识别:
+#     uname -m = mips   → ER-X / ER-X-SFP / EP-R6 / ER-10X(MIPS32 小端)
+#     uname -m = mips64 → ER-4 / ER-6P / ER-12 / ER-12P(Octeon MIPS64 内核,
+#                         o32 大端用户空间 → 使用 mips 大端二进制)
 # ---------------------------------------------------------------------------
 BINDIR=$(dirname "$0")/config/shadowsocks/bin
+ARCH_MACHINE=$(uname -m)
+case "$ARCH_MACHINE" in
+  mips)   SS_ARCH=mipsel ;;
+  mips64) SS_ARCH=mips ;;
+  *)
+    echo "ERROR: unsupported architecture: $ARCH_MACHINE (expect mips or mips64)" >&2
+    exit 1
+    ;;
+esac
+echo "platform: $ARCH_MACHINE -> binaries: .$SS_ARCH"
+
 mkdir -p /config/shadowsocks/bin
-cp -f "$BINDIR"/sslocal /config/shadowsocks/bin/
-cp -f "$BINDIR"/chinadns-ng "$BINDIR"/chinadns "$BINDIR"/pdnsd /config/shadowsocks/bin/ 2>/dev/null || true
+cp -f "$BINDIR"/sslocal.$SS_ARCH /config/shadowsocks/bin/sslocal
+cp -f "$BINDIR"/chinadns-ng.$SS_ARCH /config/shadowsocks/bin/chinadns-ng 2>/dev/null || true
+# 旧版兜底组件(chinadns/pdnsd)仅 mipsel 平台提供
+cp -f "$BINDIR"/chinadns.$SS_ARCH "$BINDIR"/pdnsd.$SS_ARCH /config/shadowsocks/bin/ 2>/dev/null || true
 cp -f "$BINDIR"/ss-monitor.sh "$BINDIR"/update-chnroute.sh /config/shadowsocks/bin/
 cp -f "$(dirname "$0")/config/shadowsocks/conf/pdnsd.conf" /config/shadowsocks/conf/
 cp -f "$(dirname "$0")/config/shadowsocks/conf/chinadns-ng.conf" /config/shadowsocks/conf/
