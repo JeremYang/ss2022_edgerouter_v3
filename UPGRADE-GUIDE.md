@@ -261,6 +261,8 @@ save
 (WAN DNS 可保留为后备,但路由器 IP 必须在最前面。改完后客户端需重连 WiFi /
 `ipconfig /renew` 重新获取 DHCP。)
 
+> 注:ER-4 系列出厂 DHCP 默认就把路由器自身作为 DNS,无需此修复(ER-4 实机验证即开箱可用)。
+
 > 排查提示:路由器**本机**的 curl/getent 不能用来看 DNS 效果——EdgeOS 自身的
 > `/etc/resolv.conf` 直连 WAN DNS(不走 dnsmasq),本机解析墙外域名必然被污染。
 > 要测真实客户端效果,请在 LAN 客户端上 `dig @<路由器IP> www.google.com`,

@@ -52,13 +52,19 @@ if [ "$ss_method" != "chacha20-ietf-poly1305" ]; then
     echo "ERROR: password required for 2022 methods." >&2
     exit 1
   fi
-  decoded_len=$(echo -n "$ss_password" | base64 -d 2>/dev/null | wc -c)
-  if ! echo -n "$ss_password" | base64 -d >/dev/null 2>&1; then
-    decoded_len=$(echo -n "$ss_password" | openssl base64 -d -A 2>/dev/null | wc -c)
-  fi
-  if [ "$decoded_len" != "$keylen" ]; then
-    echo "WARNING: decoded key length is $decoded_len bytes, expected $keylen."
-    echo "The server will reject a mismatched key."
+  # 双密钥格式 "身份密钥:主密钥"(3X-UI/xray 多用户,EIH 要求):
+  # 跳过整体长度校验,每个部分由 shadowsocks-rust 自行校验
+  if echo "$ss_password" | grep -q ':'; then
+    echo "dual-key format detected (identity:main), skip length check"
+  else
+    decoded_len=$(echo -n "$ss_password" | base64 -d 2>/dev/null | wc -c)
+    if ! echo -n "$ss_password" | base64 -d >/dev/null 2>&1; then
+      decoded_len=$(echo -n "$ss_password" | openssl base64 -d -A 2>/dev/null | wc -c)
+    fi
+    if [ "$decoded_len" != "$keylen" ]; then
+      echo "WARNING: decoded key length is $decoded_len bytes, expected $keylen."
+      echo "The server will reject a mismatched key."
+    fi
   fi
 else
   read -p "password (default: ss_password):" ss_password
