@@ -1,0 +1,62 @@
+name: Release
+
+# 打 tag(v* 开头,如 v1.0)时自动打包并发布到 GitHub Releases
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sanity check binaries (mipsel static)
+        run: |
+          file config/shadowsocks/bin/sslocal config/shadowsocks/bin/chinadns-ng
+          test "$(file -b config/shadowsocks/bin/sslocal | grep -o 'MIPS')" = "MIPS" \
+            && echo "sslocal: MIPS OK"
+          test "$(file -b config/shadowsocks/bin/chinadns-ng | grep -o 'statically linked')" = "statically linked" \
+            && echo "chinadns-ng: static OK"
+          test -s config/shadowsocks/conf/chnroute.txt && echo "chnroute.txt OK"
+          bash -n install.sh && bash -n etc/init.d/shadowsocks && echo "scripts syntax OK"
+
+      - name: Build install tarball (ss-erx3/ 前缀,与本地包一致)
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          mkdir -p dist staging/ss-erx3
+          # 复制除 .git/.github/dist 外的全部内容到 staging/ss-erx3/
+          tar --exclude=.git --exclude=.github --exclude=dist --exclude=staging -cf - . \
+            | tar -C staging/ss-erx3 -xf -
+          tar -czf dist/ss-erx3-v${VERSION}.tar.gz -C staging ss-erx3
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+
+      - name: Checksums
+        run: |
+          cd dist
+          md5sum *.tar.gz > MD5SUMS
+          sha256sum *.tar.gz > SHA256SUMS
+          ls -la
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          body: |
+            ## ss-erx3 v${{ env.VERSION }}
+
+            EdgeRouter X (ER-X) Shadowsocks 2022 (SIP022) 科学上网包,适配 EdgeOS 3.0.x (systemd) / 1.x / 2.x。
+
+            **安装**:上传 `ss-erx3-v${{ env.VERSION }}.tar.gz` 到路由器解压,`cd ss-erx3 && sudo bash install.sh`
+
+            **包含**:shadowsocks-rust v1.24.0(SS2022 + 透明代理)、chinadns-ng 2025.08.09(DNS 防污染)、
+            chnroute.txt (17mon 数据)、systemd 单元、一键安装脚本。
+
+            **注意**:3X-UI/xray 服务端请选 `2022-blake3-aes-256-gcm`;多客户端时路由器配置用"双密钥"格式;
+            部署后把 DHCP 的 DNS 改成路由器 IP。详见 UPGRADE-GUIDE.md。
