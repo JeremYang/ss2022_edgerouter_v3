@@ -1,5 +1,16 @@
 # ss-erx3 — Shadowsocks 2022 (SIP022) for Ubiquiti EdgeRouter X
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-EdgeOS%203.x%20%2F%201.x%20%2F%202.x-brightgreen)]()
+[![Arch](https://img.shields.io/badge/arch-MIPS32%20(mipsel)-lightgrey)]()
+[![Client](https://img.shields.io/badge/client-shadowsocks--rust%20v1.24.0-orange)]()
+[![DNS](https://img.shields.io/badge/DNS-chinadns--ng%202025.08.09-yellow)]()
+
+<!-- After publishing, replace OWNER/REPO below with your account/repo to show version & download badges:
+[![Release](https://img.shields.io/github/v/release/OWNER/REPO)](https://github.com/OWNER/REPO/releases)
+[![Downloads](https://img.shields.io/github/downloads/OWNER/REPO/total)](https://github.com/OWNER/REPO/releases)
+-->
+
 > A complete Shadowsocks 2022 client package for the Ubiquiti EdgeRouter X (ER-X).
 > Prebuilt static mipsel binaries: **shadowsocks-rust** (SS2022 + transparent proxy)
 > and **chinadns-ng** (DNS anti-pollution). Works on EdgeOS **3.0.x (systemd)** and 1.x/2.x.
