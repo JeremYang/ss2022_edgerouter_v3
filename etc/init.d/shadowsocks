@@ -1,0 +1,239 @@
+#! /bin/sh
+### BEGIN INIT INFO
+# Provides:          shadowsocks
+# Required-Start:    $syslog $time $remote_fs
+# Required-Stop:     $syslog $time $remote_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Description:       Start shadowsocks (SIP022 / Shadowsocks 2022) daemon
+### END INIT INFO
+
+# EdgeOS 3.x (kernel 4.14.54-UBNT) / EdgeOS 1.x/2.x compatible.
+# Uses shadowsocks-rust sslocal (supports Shadowsocks 2022 / SIP022 ciphers
+# and the old protocol), statically linked for mipsel.
+
+PATH=/bin:/usr/bin:/sbin:/usr/sbin
+DAEMON_SS_LOCAL=/config/shadowsocks/bin/sslocal   # socks5 on 1080
+DAEMON_SS_REDIR=/config/shadowsocks/bin/sslocal   # transparent redir on 1081
+DAEMON_CHINADNS_NG=/config/shadowsocks/bin/chinadns-ng
+DAEMON_PDNSD=/config/shadowsocks/bin/pdnsd
+DAEMON_CHINADNS=/config/shadowsocks/bin/chinadns
+
+#Change ISPDNS to your ISP dns or public dns, like 1.2.4.8, 114.114.114.114
+ISPDNS=114.114.114.114
+
+#This source ip range will not go through shadowsocks, uncomment if you want to use it
+#BYPASS_RANGE=192.168.123.0/24
+#BYPASS_RANGES=(192.168.100.1 192.168.100.2)
+
+#Make sure your shadowsocks config file is correct!
+SSCONFIG=/config/shadowsocks/conf/shadowsocks.json
+PDNSD_CONFIG=/config/shadowsocks/conf/pdnsd.conf
+CHINADNS_NG_CONF=/config/shadowsocks/conf/chinadns-ng.conf
+
+#Check ChinaDNS readme page on github to know how to generate latest chnroute.txt
+CHNROUTE=/config/shadowsocks/conf/chnroute.txt
+
+PIDFILE_SS_LOCAL=/var/run/ss-local.pid
+PIDFILE_SS_REDIR=/var/run/ss-redir.pid
+PIDFILE_PDNSD=/var/run/pdnsd.pid
+PIDFILE_CHINADNS=/var/run/chinadns.pid
+
+test -x $DAEMON_SS_LOCAL || exit 0
+# DNS 组件二选一:优先 chinadns-ng;否则需要旧 chinadns + pdnsd
+if [ -x $DAEMON_CHINADNS_NG ]; then
+	USE_CHINADNS_NG=1
+else
+	USE_CHINADNS_NG=0
+	test -x $DAEMON_PDNSD || exit 0
+	test -x $DAEMON_CHINADNS || exit 0
+fi
+
+. /lib/lsb/init-functions
+
+#Test if network ready (pppoe)
+test_network() {
+	curl --retry 1 --silent --connect-timeout 2 -I www.baidu.com  > /dev/null
+	if [ "$?" != "0" ]; then
+		echo 'network not ready, wait for 5 seconds ...'
+		sleep 5
+	fi
+}
+
+# Parse shadowsocks.json (simple format, same as ss-libev)
+get_ss_config() {
+	ss_server_host=`grep -o "\"server\"\s*:\s*\"[^\"]*\"" $SSCONFIG | sed -e 's/.*"server"[^"]*"\([^"]*\)"/\1/'`
+	ss_server_port=`grep -o "\"server_port\"\s*:\s*[0-9]*" $SSCONFIG | sed -e 's/.*:[^0-9]*//'`
+	ss_method=`grep -o "\"method\"\s*:\s*\"[^\"]*\"" $SSCONFIG | sed -e 's/.*"method"[^"]*"\([^"]*\)"/\1/'`
+	ss_password=`grep -o "\"password\"\s*:\s*\"[^\"]*\"" $SSCONFIG | sed -e 's/.*"password"[^"]*"\([^"]*\)"/\1/'`
+	if [ -z "$ss_server_host" ] || [ -z "$ss_server_port" ] || [ -z "$ss_method" ] || [ -z "$ss_password" ]; then
+	  echo "Error : shadowsocks.json is incomplete (need server/server_port/method/password)"
+	  exit 0
+	fi
+
+	# resolve domain to IP (avoids DNS dependency of the client)
+	if echo "$ss_server_host" | grep -q '^[^0-9]'; then
+	  ss_server_ip=`getent hosts $ss_server_host | awk '{ print $1 }' | head -1`
+	else
+	  ss_server_ip=$ss_server_host
+	fi
+	if [ -z "$ss_server_ip" ];then
+	  echo "Error : cannot resolve ss_server_host $ss_server_host"
+	  exit 0
+	fi
+}
+
+gen_iplist() {
+	cat <<-EOF
+		0.0.0.0/8
+		10.0.0.0/8
+		100.64.0.0/10
+		127.0.0.0/8
+		169.254.0.0/16
+		172.16.0.0/12
+		192.168.0.0/16
+		224.0.0.0/4
+		240.0.0.0/4
+		255.255.255.255
+		110.232.176.0/22
+		$ss_server_ip
+		$(cat ${CHNROUTE:=/dev/null} 2>/dev/null)
+EOF
+}
+
+# Idempotent: safe to call repeatedly (post-config.d runs after every commit)
+rules_add() {
+	# flush previous state first
+	iptables -t nat -F SHADOWSOCKS 2>/dev/null
+	iptables -t nat -D PREROUTING -p tcp -j SHADOWSOCKS 2>/dev/null
+	iptables -t nat -D OUTPUT -p tcp -j SHADOWSOCKS 2>/dev/null
+	iptables -t nat -X SHADOWSOCKS 2>/dev/null
+	ipset -! destroy ss_ipset_bypass 2>/dev/null
+
+	ipset -! -R <<-EOF || return 1
+		create ss_ipset_bypass hash:net
+		$(gen_iplist | sed -e "s/^/add ss_ipset_bypass /")
+EOF
+	iptables -t nat -N SHADOWSOCKS && \
+	iptables -t nat -A SHADOWSOCKS -m set --match-set ss_ipset_bypass dst -j RETURN && \
+	iptables -t nat -A SHADOWSOCKS -p tcp -j REDIRECT --to-ports 1081 && \
+	iptables -t nat -A PREROUTING -p tcp -j SHADOWSOCKS && \
+	iptables -t nat -A OUTPUT -p tcp -j SHADOWSOCKS
+	if [ "$BYPASS_RANGE" ]; then
+		iptables -t nat -I SHADOWSOCKS -s $BYPASS_RANGE -j RETURN
+	fi
+	if [ "$BYPASS_RANGES" ]; then
+		for i in "${BYPASS_RANGES[@]}"
+		do
+			iptables -t nat -I SHADOWSOCKS -s ${i} -j RETURN
+		done
+	fi
+	return $?
+}
+
+rules_flush() {
+	iptables -t nat -F SHADOWSOCKS 2>/dev/null
+	iptables -t nat -D PREROUTING -p tcp -j SHADOWSOCKS 2>/dev/null
+	iptables -t nat -D OUTPUT -p tcp -j SHADOWSOCKS 2>/dev/null
+	iptables -t nat -X SHADOWSOCKS 2>/dev/null
+	ipset -! destroy ss_ipset_bypass 2>/dev/null
+	return $?
+}
+
+case "$1" in
+  start)
+	test_network
+	get_ss_config
+	log_daemon_msg "Starting ss-local (socks5 :1080)" "ss-local"
+	start-stop-daemon -S -b -m -p $PIDFILE_SS_LOCAL --oknodo --startas $DAEMON_SS_LOCAL -- \
+		-b 0.0.0.0:1080 -s $ss_server_ip:$ss_server_port -m "$ss_method" -k "$ss_password" -U --protocol socks
+	log_end_msg $?
+
+	log_daemon_msg "Starting ss-redir (transparent :1081)" "ss-redir"
+	start-stop-daemon -S -b -m -p $PIDFILE_SS_REDIR --oknodo --startas $DAEMON_SS_REDIR -- \
+		-b 0.0.0.0:1081 -s $ss_server_ip:$ss_server_port -m "$ss_method" -k "$ss_password" --protocol redir --tcp-redir redirect
+	log_end_msg $?
+
+	if [ "$USE_CHINADNS_NG" = "1" ]; then
+		# chinadns-ng(推荐):载入 chnroute ipset(供应答 IP 分流判定)后启动
+		log_daemon_msg "Loading chnroute into ipset" "chnroute"
+		ipset -! create chnroute hash:net family inet 2>/dev/null
+		ipset -! flush chnroute 2>/dev/null
+		ipset -! -R <<-EOF
+			$(sed -e 's/^[ \t]*//' -e '/^$/d' -e 's/^/add chnroute /' ${CHNROUTE:=/dev/null})
+		EOF
+		log_end_msg $?
+
+		log_daemon_msg "Starting chinadns-ng" "chinadns-ng"
+		start-stop-daemon -S -b -m -p $PIDFILE_CHINADNS --oknodo --startas $DAEMON_CHINADNS_NG -- -C $CHINADNS_NG_CONF
+		log_end_msg $?
+	else
+		# 旧方案:pdnsd(TCP DNS 走 SS 隧道)+ chinadns
+		log_daemon_msg "Starting pdnsd" "pdnsd"
+		start-stop-daemon -S -p $PIDFILE_PDNSD --oknodo --startas $DAEMON_PDNSD -- -c $PDNSD_CONFIG -d -p $PIDFILE_PDNSD
+		log_end_msg $?
+
+		log_daemon_msg "Starting chinadns" "chinadns"
+		start-stop-daemon -S -p $PIDFILE_CHINADNS --oknodo -b -m $PIDFILE_CHINADNS --startas $DAEMON_CHINADNS -- -p 5301 -s $ISPDNS,127.0.0.1:5302 -c $CHNROUTE
+		log_end_msg $?
+	fi
+
+	log_daemon_msg "Adding iptables rules, ss_server_ip" `for i in $ss_server_ip; do p=$p$i","; done; echo ${p%,}`
+	rules_add
+	log_end_msg $?
+
+	# dnsmasq is pointed at chinadns (127.0.0.1#5301) via the config tree,
+	# set once by install.sh:
+	#   set service dns forwarding options "server=127.0.0.1#5301"
+	#   set service dns forwarding options "no-resolv"
+	# If it is not set (e.g. manual install), fall back to the legacy sed method:
+	if ! grep -q "^server=127.0.0.1#5301" /etc/dnsmasq.conf 2>/dev/null; then
+		log_daemon_msg "Pointing dnsmasq at chinadns (fallback method)"
+		sed -i s/server=$ISPDNS/server=127.0.0.1#5301/ /etc/dnsmasq.conf 2>/dev/null
+		[ 0 == `grep "^server" /etc/dnsmasq.conf|wc -l` ] && echo server=127.0.0.1#5301 >> /etc/dnsmasq.conf 2>/dev/null
+		[ 0 == `grep "^no-resolv" /etc/dnsmasq.conf|wc -l` ] && echo no-resolv >> /etc/dnsmasq.conf 2>/dev/null
+		/etc/init.d/dnsmasq restart
+		log_end_msg $?
+	fi
+
+    ;;
+  stop)
+	log_daemon_msg "Stopping ss-local" "ss-local"
+	start-stop-daemon -K -p $PIDFILE_SS_LOCAL --oknodo
+	log_end_msg $?
+	log_daemon_msg "Stopping ss-redir" "ss-redir"
+	start-stop-daemon -K -p $PIDFILE_SS_REDIR --oknodo
+	log_end_msg $?
+	log_daemon_msg "Stopping chinadns(-ng)" "chinadns"
+	start-stop-daemon -K -p $PIDFILE_CHINADNS --oknodo
+	log_end_msg $?
+	if [ "$USE_CHINADNS_NG" != "1" ]; then
+		log_daemon_msg "Stopping pdnsd" "pdnsd"
+		start-stop-daemon -K -p $PIDFILE_PDNSD --oknodo
+		log_end_msg $?
+	fi
+	log_daemon_msg "Deleteing iptables rules" "rules_flush"
+	rules_flush
+	log_end_msg $?
+    ;;
+  force-reload|restart)
+    $0 stop
+    $0 start
+    ;;
+  status)
+    status_of_proc -p $PIDFILE_SS_REDIR $DAEMON_SS_REDIR ss-redir
+    status_of_proc -p $PIDFILE_SS_LOCAL $DAEMON_SS_LOCAL ss-local
+    if [ "$USE_CHINADNS_NG" = "1" ]; then
+      status_of_proc -p $PIDFILE_CHINADNS $DAEMON_CHINADNS_NG chinadns-ng
+    else
+      status_of_proc -p $PIDFILE_CHINADNS $DAEMON_CHINADNS chinadns
+      status_of_proc -p $PIDFILE_PDNSD $DAEMON_PDNSD pdnsd
+    fi
+    ;;
+  *)
+    echo "Usage: /etc/init.d/shadowsocks {start|stop|restart|force-reload|status}"
+    exit 1
+    ;;
+esac
+
+exit 0

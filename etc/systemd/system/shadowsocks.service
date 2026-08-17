@@ -1,0 +1,18 @@
+# /etc/systemd/system/shadowsocks.service
+# EdgeOS 3.x (systemd PID1): /etc/init.d/shadowsocks 由 40-systemd 钩子
+# 重定向到 systemctl,因此必须存在此单元。
+# ExecStart 由 systemd 直接执行(PPID=1,不再触发重定向),init 脚本正常跑
+# 自己的 start/stop 逻辑(start-stop-daemon + iptables/ipset)。
+
+[Unit]
+Description=Shadowsocks 2022 client (socks5 :1080, redir :1081)
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/etc/init.d/shadowsocks start
+ExecStop=/etc/init.d/shadowsocks stop
+
+[Install]
+WantedBy=multi-user.target
