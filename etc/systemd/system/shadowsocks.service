@@ -11,6 +11,11 @@ After=network.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+# KillMode=process:stop 时只处理主进程(已退出的脚本),由 ExecStop
+# 脚本显式停止 ss-local/ss-redir;保留 chinadns-ng 运行,保证停止服务后
+# 国内 DNS 正常(见 init 脚本 stop() 注释)。若用默认 control-group,
+# systemd 停单元时会清掉 cgroup 内所有进程(包括 chinadns-ng)导致 DNS 中断。
+KillMode=process
 ExecStart=/etc/init.d/shadowsocks start
 ExecStop=/etc/init.d/shadowsocks stop
 

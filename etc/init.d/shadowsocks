@@ -204,15 +204,15 @@ case "$1" in
 	log_daemon_msg "Stopping ss-redir" "ss-redir"
 	start-stop-daemon -K -p $PIDFILE_SS_REDIR --oknodo
 	log_end_msg $?
-	log_daemon_msg "Stopping chinadns(-ng)" "chinadns"
-	start-stop-daemon -K -p $PIDFILE_CHINADNS --oknodo
-	log_end_msg $?
 	if [ "$USE_CHINADNS_NG" != "1" ]; then
 		log_daemon_msg "Stopping pdnsd" "pdnsd"
 		start-stop-daemon -K -p $PIDFILE_PDNSD --oknodo
 		log_end_msg $?
 	fi
-	log_daemon_msg "Deleteing iptables rules" "rules_flush"
+	# 注意:chinadns-ng 保留运行。dnsmasq 固定转发到 127.0.0.1#5301,
+	# 若停掉 chinadns-ng 则所有 DNS(含国内)失效导致"断网";
+	# 保留它则国内 DNS 正常,国外因无隧道而无法解析/连接(符合预期)。
+	log_daemon_msg "Deleting iptables rules" "rules_flush"
 	rules_flush
 	log_end_msg $?
     ;;

@@ -306,11 +306,16 @@ sudo sh /config/shadowsocks/bin/update-chnroute.sh
 # EdgeOS 3.x(systemd)推荐方式:
 sudo systemctl status shadowsocks      # 查看状态
 sudo systemctl restart shadowsocks     # 重启
-sudo systemctl stop shadowsocks        # 停止(会清 iptables 规则)
+sudo systemctl stop shadowsocks        # 停止代理(国内上网保持正常,国外不可达)
 # 或兼容方式(自动重定向到 systemctl):
 sudo /etc/init.d/shadowsocks status
 sudo /etc/init.d/shadowsocks restart
 ```
+> **停止服务的说明**:`stop` 只关闭代理(ss-local/ss-redir)并清 iptables 规则;
+> **chinadns-ng 保留运行**(systemd 单元 `KillMode=process`),因此 dnsmasq→chinadns-ng
+> 的 DNS 链路不断,国内网站照常访问;国外域名因无隧道无法解析/连接(符合预期)。
+> 再次 `start` 即可全部恢复。若某次 commit 后服务被意外拉起,属于 post-config.d
+> 的规则恢复机制——只有服务处于运行状态时才会触发,显式 `stop` 后不会被拉起。
 自愈监控(沿用旧版,可选):
 ```
 sudo crontab -e
