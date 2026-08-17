@@ -128,6 +128,14 @@ cp -f "$BINDIR"/chinadns-ng.$SS_ARCH /config/shadowsocks/bin/chinadns-ng 2>/dev/
 # 旧版兜底组件(chinadns/pdnsd)仅 mipsel 平台提供
 cp -f "$BINDIR"/chinadns.$SS_ARCH "$BINDIR"/pdnsd.$SS_ARCH /config/shadowsocks/bin/ 2>/dev/null || true
 cp -f "$BINDIR"/ss-monitor.sh "$BINDIR"/update-chnroute.sh /config/shadowsocks/bin/
+cp -f "$BINDIR"/ss-ctl /config/shadowsocks/bin/ 2>/dev/null || true
+chmod +x /config/shadowsocks/bin/*
+
+# ss-ctl 快捷方式:可见走马灯输出控制服务(sudo ss-start / ss-stop / ...)
+mkdir -p /usr/local/bin
+for a in start stop restart status; do
+  ln -sf /config/shadowsocks/bin/ss-ctl /usr/local/bin/ss-$a
+done
 cp -f "$(dirname "$0")/config/shadowsocks/conf/pdnsd.conf" /config/shadowsocks/conf/
 cp -f "$(dirname "$0")/config/shadowsocks/conf/chinadns-ng.conf" /config/shadowsocks/conf/
 cp -f "$(dirname "$0")/config/shadowsocks/conf/chnroute.txt" /config/shadowsocks/conf/ 2>/dev/null || true

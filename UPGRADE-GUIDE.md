@@ -309,14 +309,28 @@ sudo sh /config/shadowsocks/bin/update-chnroute.sh
 
 ### 3.4 日常使用
 ```bash
-# EdgeOS 3.x(systemd)推荐方式:
-sudo systemctl status shadowsocks      # 查看状态
-sudo systemctl restart shadowsocks     # 重启
+# 方式一:可见走马灯输出(推荐,能看到每个组件的启动/停止状态)
+sudo ss-restart            # 显示:Stopping ss-local... Stopping ss-redir... / Starting...
+sudo ss-stop               # 显示:Stopping ... Restoring direct DNS ... Deleting iptables
+sudo ss-start              # 显示:Starting ss-local... ss-redir... chinadns-ng... 规则...
+sudo ss-status
+# (install.sh 已创建 ss-start/ss-stop/ss-restart/ss-status 快捷方式,
+#  内部直接执行 init 脚本显示走马灯,再同步 systemd 单元状态)
+
+# 方式二:标准 systemd(无终端输出,输出进 journal)
+sudo systemctl status shadowsocks
+sudo systemctl restart shadowsocks
 sudo systemctl stop shadowsocks        # 停止代理(回到普通直连上网)
 # 或兼容方式(自动重定向到 systemctl):
 sudo /etc/init.d/shadowsocks status
 sudo /etc/init.d/shadowsocks restart
 ```
+> **为什么有 ss-ctl**:`systemctl start/stop` 由 systemd 执行,进度输出只进
+> journal,终端看不到。`ss-start/ss-stop/ss-restart` 通过
+> `SYSTEMCTL_SKIP_REDIRECT=1` 直接执行 init 脚本,`log_daemon_msg` 的
+> 走马灯(`[....]` 轮转 → `[ OK ]`)实时显示在终端,随后再同步 systemd
+> 单元状态(幂等),保证 `is-active` 正确、显式停止后 post-config.d 不会误拉起。
+> 两个方式等价,可混用。
 > **停止服务的说明**(v1.0.2 起):`stop` 关闭全部代理进程(ss-local/ss-redir/
 > chinadns-ng)、清 iptables 规则,并**把 DNS 完整切回直连**(删除 config tree
 > 里的 `server=127.0.0.1#5301` + `no-resolv`,dnsmasq 重新使用 WAN DNS):

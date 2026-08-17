@@ -1,0 +1,45 @@
+#!/bin/sh
+# ss-ctl - 可见输出版(走马灯)控制 shadowsocks 服务
+#
+# 用法:
+#   sudo /config/shadowsocks/bin/ss-ctl start|stop|restart|status
+# 或(install.sh 会创建符号链接,直接输名字):
+#   sudo ss-start / ss-stop / ss-restart / ss-status
+#
+# 为什么需要它:systemctl 执行 ExecStart/ExecStop 时,输出只进入 journal,
+# 调用终端看不到进度。本脚本通过 SYSTEMCTL_SKIP_REDIRECT=1 直接执行
+# /etc/init.d/shadowsocks,init-functions 的 log_daemon_msg 走马灯
+# ("[....] 轮转" → "[ OK ]")会实时显示在终端;
+# 之后再调用 systemctl 同步单元状态(幂等,无副作用),保证:
+#   - `systemctl is-active` 状态正确;
+#   - post-config.d 不会在显式停止后误拉起服务。
+# 兼容 EdgeOS 1.x/2.x(sysvinit):systemctl 不存在时静默跳过,直接输出仍可见。
+
+PROG=$(basename "$0")
+case "$PROG" in
+  ss-start)   ACTION=start ;;
+  ss-stop)    ACTION=stop ;;
+  ss-restart) ACTION=restart ;;
+  ss-status)  ACTION=status ;;
+  *)          ACTION="$1" ;;
+esac
+[ -n "$ACTION" ] || { echo "Usage: $0 {start|stop|restart|status}"; exit 1; }
+
+case "$ACTION" in
+  start|stop|restart|force-reload)
+    SYSTEMCTL_SKIP_REDIRECT=1 /etc/init.d/shadowsocks "$ACTION"
+    rc=$?
+    # 同步 systemd 单元状态(再次执行幂等)
+    systemctl "$ACTION" shadowsocks >/dev/null 2>&1
+    echo
+    systemctl --no-pager -l status shadowsocks 2>/dev/null | head -3
+    exit $rc
+    ;;
+  status)
+    SYSTEMCTL_SKIP_REDIRECT=1 /etc/init.d/shadowsocks status
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart|status}"
+    exit 1
+    ;;
+esac
